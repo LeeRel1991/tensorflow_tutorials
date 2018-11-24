@@ -10,7 +10,7 @@
 @software: PyCharm
 @file: VGG.py
 @time: 18-11-13 下午11:33
-@brief： implementation for VGG
+@brief： implementation for VGG16
 """
 
 from datetime import datetime
@@ -22,9 +22,11 @@ from tensorflow.contrib.framework import arg_scope
 
 
 """
-net structs 
+vgg16 net structs 
 -------------------------------------------------- 
 layer          | kh x kw, out, s | out size 
+-------------------------------------------------- 
+         input image (224 x 224 x3)
 -------------------------------------------------- 
 conv1_1        | 3x3, 64, 1      | 224x224x64 
 conv1_2        | 3x3, 64, 1      | 224x224x64 
@@ -68,7 +70,6 @@ num_batches = 100
 
 # --------------------------Method 0 --------------------------------------------
 # 用来创建卷积层并把本层的参数存入参数列表
-# input_op: name: kh: kw:卷积层的宽 n_out:输出通道数，dh:步长的高 dw:步长的宽，p是参数列表
 def conv_op(input_op, name, kh, kw, n_out, dh, dw, p):
     """
     define conv operator with tf.nn 
@@ -123,7 +124,7 @@ def mpool_op(input_op, name, kh, kw, dh, dw):
 
 
 # 定义网络结构 Method 0
-def inference_op(input_op, keep_prob):
+def vgg16_op(input_op, keep_prob):
     p = []
     conv1_1 = conv_op(input_op, name='conv1_1', kh=3, kw=3, n_out=64, dh=1, dw=1, p=p)
     conv1_2 = conv_op(conv1_1, name='conv1_2', kh=3, kw=3, n_out=64, dh=1, dw=1, p=p)
@@ -170,6 +171,12 @@ class VGG1:
     define with tf.layers
     """
     def __init__(self, resolution_inp=224, channel=3, name='vgg'):
+        """
+        construct function
+        :param resolution_inp: int, size of input image. default 224 of ImageNet
+        :param channel: int, channel of input image. 1 or 3
+        :param name: 
+        """
         self.name = name
         self.channel = channel
         self.resolution_inp = resolution_inp
@@ -191,12 +198,12 @@ class VGG1:
             se = self.vgg_block(se, 3, size * 8, is_training=is_training)
 
             # conv5 (512, 3, 1) x 3
-            pool5 = self.vgg_block(se, 3, size * 8, is_training=is_training)
+            se = self.vgg_block(se, 3, size * 8, is_training=is_training)
 
             # full connect
-            pool5_flat = tcl.flatten(pool5)
+            flatten = tcl.flatten(se)
 
-            fc6 = tf.layers.dense(pool5_flat, 4096)
+            fc6 = tf.layers.dense(flatten, 4096)
             fc6_drop = tcl.dropout(fc6, dropout, is_training=is_training)
 
             fc7 = tf.layers.dense(fc6_drop, 4096)
@@ -253,58 +260,58 @@ class VGG2:
 
     def __call__(self, x, dropout=0.5, is_training=True):
         with tf.variable_scope(self.name) as scope:
-            size = 64
-
-            # conv1 (64, 3, 1) x 2
-            se = self.vgg_block(x, 2, size, is_training=is_training)
-
-            # conv2 (128, 3, 1) x 2
-            se = self.vgg_block(se, 2, size * 2, is_training=is_training)
-
-            # conv3 (256, 3, 1) x 3
-            se = self.vgg_block(se, 3, size * 4, is_training=is_training)
-
-            # conv4 (512, 3, 1) x 3
-            se = self.vgg_block(se, 3, size * 8, is_training=is_training)
-
-            # conv5 (512, 3, 1) x 3
-            pool5 = self.vgg_block(se, 3, size * 8, is_training=is_training)
-
-            pool5_flat = tcl.flatten(pool5)
-
-            fc6 = tf.layers.dense(pool5_flat, 4096)
-            fc6_drop = tcl.dropout(fc6, dropout, is_training=is_training)
-            print("dropout ", fc6, fc6_drop)
-
-            fc7 = tf.layers.dense(fc6_drop, 4096)
-            fc7_drop = tcl.dropout(fc7, dropout, is_training=is_training)
-            self.fc_out = tf.layers.dense(fc7_drop, 1000)
-
-            # predict for classify
-            softmax = tf.nn.softmax(self.fc_out)
-            self.predictions = tf.argmax(softmax, 1)
-            return self.predictions
-
-    def vgg_block(self, x, num_convs, num_channels, scope=None, is_training=True):
-        """
-        define the basic repeat unit in vgg: n x (conv-relu-batchnorm)-maxpool
-        :param x: 
-        :param num_convs: 
-        :param num_channels: 
-        :param scope: 
-        :param is_training: 
-        :return: 
-        """
-        with tf.variable_scope(scope, "conv"):
             with arg_scope([tcl.batch_norm], is_training=is_training, scale=True):
                 with arg_scope([tcl.conv2d],
                                padding="SAME",
                                normalizer_fn=tcl.batch_norm,
                                activation_fn=tf.nn.relu, ):
-                    se = x
-                    for i in range(num_convs):
-                        se = tcl.conv2d(se, num_outputs=num_channels, kernel_size=3, stride=1)
-                    se = tf.layers.max_pooling2d(se, 2, 2, padding="same")
+                    size = 64
+
+                    # conv1 (64, 3, 1) x 2
+                    se = self.vgg_block(x, 2, size, is_training=is_training)
+
+                    # conv2 (128, 3, 1) x 2
+                    se = self.vgg_block(se, 2, size * 2, is_training=is_training)
+
+                    # conv3 (256, 3, 1) x 3
+                    se = self.vgg_block(se, 3, size * 4, is_training=is_training)
+
+                    # conv4 (512, 3, 1) x 3
+                    se = self.vgg_block(se, 3, size * 8, is_training=is_training)
+
+                    # conv5 (512, 3, 1) x 3
+                    se = self.vgg_block(se, 3, size * 8, is_training=is_training)
+
+                    flatten = tcl.flatten(se) 
+
+                    fc6 = tf.layers.dense(flatten, 4096)
+                    fc6_drop = tcl.dropout(fc6, dropout, is_training=is_training)
+                    print("dropout ", fc6, fc6_drop)
+
+                    fc7 = tf.layers.dense(fc6_drop, 4096)
+                    fc7_drop = tcl.dropout(fc7, dropout, is_training=is_training)
+                    self.fc_out = tf.layers.dense(fc7_drop, 1000)
+
+                    # predict for classify
+                    softmax = tf.nn.softmax(self.fc_out)
+                    self.predictions = tf.argmax(softmax, 1)
+                    return self.predictions
+
+    def vgg_block(self, x, num_convs, num_channels, scope=None, is_training=True):
+        """
+        define the basic repeat unit in vgg: n x (conv-relu-batchnorm)-maxpool
+        :param x: tensor or numpy.array, input
+        :param num_convs: int, number of conv-relu-batchnorm 
+        :param num_channels: int, number of conv filters
+        :param scope: name space or scope
+        :param is_training: bool, is training or not
+        :return: 
+        """
+        with tf.variable_scope(scope, "conv"):
+            se = x
+            for i in range(num_convs):
+                se = tcl.conv2d(se, num_outputs=num_channels, kernel_size=3, stride=1)
+            se = tf.layers.max_pooling2d(se, 2, 2, padding="same")
 
         print("layer ", self.name, "in ", x, "out ", se)
 
@@ -361,7 +368,7 @@ def run_benchmark():
         keep_prob = tf.placeholder(tf.float32)
 
         # method 0
-        # prediction, softmax, fc8, p = inference_op(images, keep_prob)
+        # prediction, softmax, fc8, p = vgg16_op(images, keep_prob)
 
         # method 1 and method 2
         # vgg16 = VGG1(resolution_inp=image_size, name="vgg16")
@@ -381,6 +388,8 @@ def run_benchmark():
         sess.run(init)
 
         print("predict..")
+        writer = tf.summary.FileWriter("./logs")
+        writer.add_graph(sess.graph)
         time_tensorflow_run(sess, prediction, {keep_prob: 1.0}, "Forward")
 
         # 用以模拟训练的过程
@@ -389,7 +398,7 @@ def run_benchmark():
 
         print('grad backword')
         time_tensorflow_run(sess, grad, {keep_prob: 0.5}, "Forward-backward")
-
+        writer.close()
 
 if __name__ == '__main__':
     run_benchmark()
