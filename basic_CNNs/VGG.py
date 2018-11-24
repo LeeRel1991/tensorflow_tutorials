@@ -10,7 +10,7 @@
 @software: PyCharm
 @file: VGG.py
 @time: 18-11-13 下午11:33
-@brief： implementation for VGG
+@brief： implementation for VGG16
 """
 
 from datetime import datetime
@@ -68,7 +68,6 @@ num_batches = 100
 
 # --------------------------Method 0 --------------------------------------------
 # 用来创建卷积层并把本层的参数存入参数列表
-# input_op: name: kh: kw:卷积层的宽 n_out:输出通道数，dh:步长的高 dw:步长的宽，p是参数列表
 def conv_op(input_op, name, kh, kw, n_out, dh, dw, p):
     """
     define conv operator with tf.nn 
@@ -123,7 +122,7 @@ def mpool_op(input_op, name, kh, kw, dh, dw):
 
 
 # 定义网络结构 Method 0
-def inference_op(input_op, keep_prob):
+def vgg16_op(input_op, keep_prob):
     p = []
     conv1_1 = conv_op(input_op, name='conv1_1', kh=3, kw=3, n_out=64, dh=1, dw=1, p=p)
     conv1_2 = conv_op(conv1_1, name='conv1_2', kh=3, kw=3, n_out=64, dh=1, dw=1, p=p)
@@ -361,7 +360,7 @@ def run_benchmark():
         keep_prob = tf.placeholder(tf.float32)
 
         # method 0
-        # prediction, softmax, fc8, p = inference_op(images, keep_prob)
+        # prediction, softmax, fc8, p = vgg16_op(images, keep_prob)
 
         # method 1 and method 2
         # vgg16 = VGG1(resolution_inp=image_size, name="vgg16")
@@ -381,6 +380,8 @@ def run_benchmark():
         sess.run(init)
 
         print("predict..")
+        writer = tf.summary.FileWriter("./logs")
+        writer.add_graph(sess.graph)
         time_tensorflow_run(sess, prediction, {keep_prob: 1.0}, "Forward")
 
         # 用以模拟训练的过程
@@ -389,7 +390,7 @@ def run_benchmark():
 
         print('grad backword')
         time_tensorflow_run(sess, grad, {keep_prob: 0.5}, "Forward-backward")
-
+        writer.close()
 
 if __name__ == '__main__':
     run_benchmark()
